@@ -1,13 +1,18 @@
 #include <Arduino.h>
 #include "driver/i2s.h"
 #include <FFT.h>
+#include <blink.h>
+#include <notesAndFreq.h>
 
 // https://github.com/espressif/arduino-esp32/blob/master/libraries/ESP32/examples/I2S/HiFreq_ADC/HiFreq_ADC.ino
 // https://github.com/atomic14/esp32_audio/blob/master/i2s_sampling/src/main.cpp
 // https://pastebin.com/ChnLivTK
 
-#define I2S_SAMPLE_RATE 22000
-#define ADC_INPUT ADC1_CHANNEL_0 // pin 32
+blink ledBlink(LED_BUILTIN);
+
+#define I2S_SAMPLE_RATE 11000
+//#define ADC_INPUT ADC1_CHANNEL_0 // pin 32
+#define ADC_INPUT ADC1_CHANNEL_5    // Para Doit v1.0
 #define NUM_SAMPLES 1024
 #define ARRAYSIZE(a)    (sizeof(a)/sizeof(a[0]))
 
@@ -24,11 +29,33 @@ float fft_output[FFT_N];
 
 float max_magnitude = 0;
 float fundamental_freq = 0;
-//unsigned long t1 = 0;
-//unsigned long t2 = 0;
+char note_name[4];
 char print_buf[300];
 
-// Función Parpadeo
+
+bool findNote()
+{
+  
+  for (int octava = 0; octava < CANTIDAD_DE_OCTAVAS; octava++)
+  {
+    for (int nota = 0; nota < 11; nota++)
+    {
+        
+      if (fundamental_freq >= pow(2,octava) * (1 - DETUNE) * FREQ_OF_NOTES[nota] && fundamental_freq <= pow(2,octava) * (1 + DETUNE) * FREQ_OF_NOTES[nota])
+      {
+        // Nota encontrada
+        //Serial.printf("Nota %s%i, ",NOTE_NAMES[nota],octava);
+        sprintf(note_name, "%s%i", NOTE_NAMES[nota], octava);
+        return true;
+      }
+      
+    }
+
+  }
+  return false;
+}
+
+// Función Para sacar datos por el Serie
 void SerialInfo(unsigned long interval)
 {
 	static unsigned long previousMillis = 0;        // will store last time LED was updated
@@ -39,12 +66,10 @@ void SerialInfo(unsigned long interval)
 	if(currentMillis - previousMillis > interval) 
 	{
 		previousMillis = currentMillis;
-    if (max_magnitude * 4 / FFT_N / 1000 > 0.1 )
-    {
-      sprintf(print_buf,"Fundamental Freq: %.2f Hz, Mag: %.2f V \n ",
-                    fundamental_freq,(max_magnitude)*4/FFT_N/1000);
-      Serial.print(print_buf);
-    }
+    sprintf(print_buf,"Nota: %s, Fundamental Freq: %.2f Hz, Mag: %.2f V \n ",
+                    note_name, fundamental_freq,(max_magnitude)*4/FFT_N/1000);
+        Serial.print(print_buf);
+    
 	}
 }
 
@@ -58,7 +83,7 @@ void i2sInit()
     .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
     .communication_format = I2S_COMM_FORMAT_I2S_MSB,
     .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-    .dma_buf_count = 4,
+    .dma_buf_count = 8,
     .dma_buf_len = NUM_SAMPLES,
     .use_apll = false,
     .tx_desc_auto_clear = false,
@@ -95,7 +120,11 @@ void CalculateFFT()
   fft_config_t *real_fft_plan = fft_init(FFT_N, FFT_REAL, FFT_FORWARD, fft_input, fft_output);
     
   for (int k = 0; k < FFT_N; k++)
-    real_fft_plan->input[k] = (float)samples[k];
+  {
+    real_fft_plan->input[k] = (float)samples[k] - (float)2048.0;
+    //Serial.println(real_fft_plan->input[k]);
+  }
+    
   
   fft_execute(real_fft_plan);
 
@@ -117,26 +146,31 @@ void CalculateFFT()
 
 }
 
+
+
+
 void setup()
 {
   delay(2000);
   Serial.begin(115200);
-  pinMode(GPIO_NUM_32,OUTPUT);
+  //pinMode(GPIO_NUM_32,OUTPUT);
+  ledBlink.init();
   i2sInit();
   Serial.println("Listo");
 }
 
 void loop()
 {
-  digitalWrite(GPIO_NUM_32,HIGH);
+  //digitalWrite(GPIO_NUM_32,HIGH);
   size_t bytesRead = 0;
   i2s_read(I2S_NUM_0, (void*)samples, sizeof(samples), &bytesRead, portMAX_DELAY); // no timeout
   CalculateFFT();
-  
-  digitalWrite(GPIO_NUM_32,LOW);
+  findNote();
+  if(findNote()) SerialInfo(100);
+  //digitalWrite(GPIO_NUM_32,LOW);
 
-  SerialInfo(1000);
   
+  ledBlink.update(1000);
   
   
     
