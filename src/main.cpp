@@ -10,6 +10,8 @@
 
 // TODO: Probar asociar la nota al bean de la FFT directamente, para evitar hacer las divisiones.
 
+
+
 blink ledBlink(LED_BUILTIN);
 
 #define I2S_SAMPLE_RATE 11000
