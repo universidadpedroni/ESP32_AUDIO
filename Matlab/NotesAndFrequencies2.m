@@ -19,10 +19,14 @@ for octava = 0:CANTIDAD_DE_OCTAVAS
             2^octava * (1) * FREQ_OF_NOTES(nota),...
             69 + 12 * log2(2^octava * (1 + DETUNE) * FREQ_OF_NOTES(nota)/440),...
             2^octava * (1 + DETUNE) * FREQ_OF_NOTES(nota));
-
+    
     end
     
 end
+%% https://mixbutton.com/mixing-articles/music-note-to-frequency-chart/
+f = 16.35:0.01:7902.13;
+notaMidi = round(69 + 12 * log2(f / 440),0);
+plot(f,notaMidi);grid;
 
     
 
